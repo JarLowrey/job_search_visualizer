@@ -1,4 +1,4 @@
-# Job application tracker (no AI)
+# Job application tracker - python scaper, classifier, visualizer
 
 Two small Python programs (standard library only, Python 3.9+) and a web page.
 
