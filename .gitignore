@@ -1,0 +1,42 @@
+# --- Personally identifying data: never commit ---------------------------------
+
+# Downloaded mail (sender addresses, names, message bodies, Gmail thread links)
+emails*.json
+*.mbox
+*.eml
+
+# Output of job_tracker.py: contains your Gmail address, employers, and links to your threads
+applications*.json
+applications*.csv
+# Statuses you set by hand (names your employers)
+overrides.json
+*.csv
+
+# Real mail and hand labels used to check the rules. Keep local; use synthetic fixtures to share.
+fixtures/
+
+# Credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets*
+credentials*.json
+token*.json
+
+# --- Python ---------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# --- Editors / OS ---------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,8 @@
+[
+  {
+    "company": "Example Corp",
+    "position": null,
+    "status": "unknown",
+    "note": "Copy to overrides.json. Leave position null to match every application at the company."
+  }
+]

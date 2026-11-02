@@ -1,0 +1,695 @@
+<title>Application Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — the run you loaded, a status strip that doubles as filters, then a dense ledger of applications that expand into their email trail. */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eef1f5; --ink:#17202a; --muted:#5a6676; --faint:#8a95a3; --line:#dde2e9; --accent:#2350c4; --accent-ink:#ffffff;
+  --st-applied:#3e5f8a; --st-referred:#287d8e; --st-pending:#a86400; --st-interviewing:#6a3fb5; --st-offer:#1d7f4e; --st-accepted:#0f6b3c; --st-rejected:#b23a3a; --st-withdrawn:#6b7280; --st-other:#0f7480;
+  --warn-bg:#fff4e0; --warn-ink:#7a4a00; --code-bg:#12181f; --code-ink:#dbe4ee;
+  --f-ui:"Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1318; --surface:#161c23; --sunk:#1c242d; --ink:#e5eaf0; --muted:#9aa6b5; --faint:#6f7b8a; --line:#28323d; --accent:#7ea3ff; --accent-ink:#0b1220;
+  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
+  --warn-bg:#33270f; --warn-ink:#f3cf8a; --code-bg:#0a0e13; --code-ink:#cfd9e4; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --surface:#161c23; --sunk:#1c242d; --ink:#e5eaf0; --muted:#9aa6b5; --faint:#6f7b8a; --line:#28323d; --accent:#7ea3ff; --accent-ink:#0b1220;
+  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
+  --warn-bg:#33270f; --warn-ink:#f3cf8a; --code-bg:#0a0e13; --code-ink:#cfd9e4; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font-size:1.05rem;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;font-size:.9rem}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:8px 14px;min-height:38px;cursor:pointer;font-weight:600}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07);background:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.link{border:0;background:none;padding:4px 0;min-height:0;color:var(--accent);font-weight:500}
+.btn.small{padding:4px 10px;min-height:30px;font-size:.8rem}
+input[type=date],input[type=search],textarea,select{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;min-height:38px}
+textarea{width:100%;font-family:var(--f-mono);font-size:.78rem;resize:vertical;min-height:120px}
+.hint{color:var(--muted);font-size:.8rem;margin:0}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+.step{display:flex;flex-direction:column;gap:8px;min-width:0}
+.step .num{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.step p{margin:0;font-size:.9rem;color:var(--muted)}
+.step a{color:var(--accent)}
+.cmd{position:relative;background:var(--code-bg);color:var(--code-ink);border-radius:8px;padding:12px 78px 12px 12px;font-family:var(--f-mono);font-size:.78rem;line-height:1.55;overflow-x:auto;white-space:pre}
+.cmd button{position:absolute;top:8px;right:8px;background:transparent;border:1px solid #3a4756;color:var(--code-ink);border-radius:6px;padding:3px 9px;font-size:.72rem;cursor:pointer}
+.cmd button:hover{background:#1f2a36}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:22px 16px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;background:var(--bg)}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
+details.paste summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+details.paste .body{display:flex;flex-direction:column;gap:8px;margin-top:10px;align-items:flex-start}
+
+.runbar{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.runbar .what{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 320px}
+.runbar .what b{font-weight:600}
+.runbar .what span{color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}
+.runbar .acts{display:flex;gap:8px;flex-wrap:wrap}
+
+.notice{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 14px;font-size:.9rem}
+.saving{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.bar{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden;flex:1;min-width:120px}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+
+.strip{display:flex;flex-wrap:wrap;gap:8px}
+.chart-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.chart-head{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.chart-head p{margin:0;color:var(--muted);font-size:.82rem}
+.chart{width:100%;height:220px;overflow:visible}
+.chart text{font-family:var(--f-ui);fill:var(--muted);font-size:11px}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-bar{fill:var(--accent)}
+.chart-value{fill:var(--ink)!important;font-weight:600;text-anchor:middle}
+.chart-date{text-anchor:middle}
+.chart-empty{color:var(--muted);min-height:220px;display:flex;align-items:center;justify-content:center}
+.sankey-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.sankey-panel svg{width:100%;height:auto;overflow:visible}
+.sankey-panel text{font-family:var(--f-ui);fill:var(--ink);font-size:12px}
+.sankey-panel .sankey-label{fill:var(--muted)}
+.sankey-panel .sankey-caption{color:var(--muted);font-size:.82rem;margin:0}
+.chipf{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:.88rem}
+.chipf .n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.chipf[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--faint));flex:none}
+
+.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.toolbar input[type=search]{flex:1;min-width:180px}
+.toolbar .since{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+
+.ledger{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lhead,.app>.summary{display:grid;grid-template-columns:minmax(0,1.3fr) 11rem minmax(0,2fr) 5rem;gap:14px;align-items:center;padding:12px 16px}
+.lhead{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);background:var(--sunk);padding-block:8px}
+.app{border-bottom:1px solid var(--line)}
+.app:last-child{border-bottom:0}
+.app>.summary{cursor:pointer;width:100%;text-align:left;background:none;border:0}
+.app>.summary:hover{background:var(--sunk)}
+.co{font-weight:600;overflow-wrap:anywhere}
+.pos{color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}
+.via{color:var(--faint);font-size:.75rem}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:3px 8px;font-size:.8rem;font-weight:600;color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);max-width:100%}
+.statuscell{display:flex;flex-direction:column;gap:3px;min-width:0;align-items:flex-start}
+.statuscell .item{font-size:.78rem;color:var(--st-pending);overflow-wrap:anywhere}
+.ovr{font-size:.7rem;color:var(--faint)}
+.detail{font-size:.9rem;min-width:0;overflow-wrap:anywhere}
+.detail .subj{display:block;color:var(--faint);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.when{text-align:right;font-size:.8rem;color:var(--muted)}
+.when b{display:block;color:var(--ink);font-weight:500}
+
+.trail{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;background:var(--sunk);border-top:1px dashed var(--line)}
+.tl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.tl li{display:grid;grid-template-columns:6.5rem 9.5rem minmax(0,1fr) auto;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline;font-size:.86rem}
+.tl li:last-child{border-bottom:0}
+.tl .d{color:var(--muted);font-size:.78rem}
+.tl .s{color:var(--faint);font-size:.78rem;display:block;overflow-wrap:anywhere}
+.tl a{color:var(--accent);font-size:.8rem;white-space:nowrap}
+.edit{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.edit label{font-size:.8rem;color:var(--muted)}
+
+.empty{padding:40px 20px;text-align:center;color:var(--muted);display:flex;flex-direction:column;gap:6px;align-items:center}
+.empty strong{color:var(--ink);font-size:1.05rem}
+.empty p{margin:0;max-width:52ch}
+.foot{color:var(--faint);font-size:.8rem;display:flex;gap:6px 16px;flex-wrap:wrap}
+
+@media (max-width:760px){
+  .lhead{display:none}
+  .app>.summary{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who when" "st st" "det det";gap:6px 12px}
+  .who{grid-area:who}.statuscell{grid-area:st;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}.detail{grid-area:det}.when{grid-area:when}
+  .tl li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"d a" "c c" "t t";gap:4px 10px}
+  .tl .d{grid-area:d}.tl .c{grid-area:c}.tl .t{grid-area:t}.tl a{grid-area:a}
+}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<div class="wrap" id="wrap">
+  <header>
+    <h1>Application Tracker</h1>
+    <p class="sub">Job applications found in your Gmail by a Python program (<span class="mono">job_tracker.py</span>), with the status from each company's most recent email. No AI sorts your mail.</p>
+  </header>
+
+  <section class="panel" id="welcome" hidden aria-label="Load your applications">
+    <h2>Run the program, then load what it writes</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="num">1 · ONCE</span>
+        <p>Turn on 2-Step Verification for your Google account, then create an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">app password</a>. The program asks for it when it runs (or reads <span class="mono">GMAIL_APP_PASSWORD</span>).</p>
+      </div>
+      <div class="step">
+        <span class="num">2 · CHECK WHAT WOULD BE DOWNLOADED</span>
+        <div class="cmd" data-copy><code>python gmail_scraper.py --user jarlowrey@gmail.com --since 2026-10-20 --dry-run</code><button type="button">Copy</button></div>
+        <p>Prints the Gmail search and how many messages match. Nothing is saved.</p>
+      </div>
+      <div class="step">
+        <span class="num">3 · EVERY TIME YOU WANT AN UPDATE</span>
+        <div class="cmd" data-copy><code>python job_tracker.py imap --user jarlowrey@gmail.com --since 2026-10-20 --format json --out applications.json</code><button type="button">Copy</button></div>
+        <p>Change <span class="mono">--since</span> to look further back. Add <span class="mono">--before</span> for an end date.</p>
+      </div>
+    </div>
+    <div class="drop" id="drop">
+      <strong>Load applications.json</strong>
+      <span class="hint">Drop the file here, or choose it.</span>
+      <button class="btn primary" type="button" data-pick>Choose file</button>
+    </div>
+    <details class="paste">
+      <summary>Paste the JSON instead</summary>
+      <div class="body">
+        <textarea id="pasteArea" spellcheck="false" aria-label="Paste applications JSON"></textarea>
+        <button class="btn" type="button" id="pasteGo">Load pasted JSON</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="runbar" id="runbar" hidden aria-label="Loaded run">
+    <div class="what"><b id="runTitle"></b><span id="runSub"></span></div>
+    <div class="acts">
+      <button class="btn" type="button" data-pick>Load a newer file</button>
+      <button class="btn link" type="button" id="showHelp">How to refresh</button>
+    </div>
+  </section>
+
+  <input type="file" id="file" accept=".json,application/json" hidden>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+
+  <section class="saving" id="saving" hidden aria-live="polite">
+    <strong id="saveTitle">Saving</strong><div class="bar"><i id="saveBar"></i></div><span class="mono" id="saveNum"></span>
+  </section>
+
+  <nav class="strip" id="strip" aria-label="Filter by status"></nav>
+  <section class="chart-panel" id="applicationChart" hidden aria-label="Applications by date">
+    <div class="chart-head">
+      <h2>Applications over time</h2>
+      <p id="chartSub"></p>
+    </div>
+    <div id="chartBody"></div>
+  </section>
+  <section class="sankey-panel" id="statusSankey" hidden aria-label="Application status transitions">
+    <h2>Application status flow</h2>
+    <nav class="strip" id="sankeyFilter" aria-label="Show applications that started as" hidden></nav>
+    <p class="sankey-caption" id="sankeySub"></p>
+    <div id="sankeyBody"></div>
+  </section>
+  <div class="toolbar" id="toolbar" hidden>
+    <input type="search" id="q" placeholder="Search company or position" aria-label="Search company or position">
+    <label class="since" for="since">Updated since <input type="date" id="since"></label>
+    <button class="btn link" id="clearSince" type="button" hidden>Clear date</button>
+    <button class="btn link" id="toggleHidden" type="button" hidden></button>
+  </div>
+
+  <section class="ledger" id="ledger" aria-label="Applications">
+    <div class="empty"><strong>Loading your tracker…</strong></div>
+  </section>
+
+  <footer class="foot">
+    <span>Statuses come from rules in <span class="mono">job_tracker.py</span>, not from AI. Rules can be wrong: open an application and set the status yourself if one is off.</span>
+    <span id="saveNote"></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+const STATUS = {
+  applied:{label:"Applied", c:"--st-applied"},
+  referred:{label:"Referred", c:"--st-referred"},
+  pending:{label:"Pending", c:"--st-pending"},
+  interviewing:{label:"Interviewing", c:"--st-interviewing"},
+  offer:{label:"Offer", c:"--st-offer"},
+  accepted:{label:"Accepted", c:"--st-accepted"},
+  rejected:{label:"Rejected", c:"--st-rejected"},
+  withdrawn:{label:"Withdrawn", c:"--st-withdrawn"},
+  unknown:{label:"Unknown", c:"--st-other"},
+};
+const ATS = {"greenhouse.io":"Greenhouse","greenhouse-mail.io":"Greenhouse","lever.co":"Lever","ashbyhq.com":"Ashby","myworkday.com":"Workday","myworkdayjobs.com":"Workday","icims.com":"iCIMS","smartrecruiters.com":"SmartRecruiters","jobvite.com":"Jobvite","workablemail.com":"Workable","linkedin.com":"LinkedIn","indeedemail.com":"Indeed","stackoverflow.com":"Stack Overflow","governmentjobs.com":"GovernmentJobs"};
+
+// files written before the rename call this status "other"
+const normStatus = s => s==="other" ? "unknown" : (STATUS[s] ? s : "unknown");
+const $ = id => document.getElementById(id);
+let db=null, settingsRef=null, appsCol=null, storeOk=false;
+let settings = {overrides:{}, hidden:{}, run:null, since:""};
+let saved = new Map();          // doc id -> application (from the database)
+let memory = null;              // applications held only in this page when saving isn't available
+let settingsLoaded=false, appsLoaded=false, importing=false, helpOpen=false;
+let filterStatus="all", query="", showHidden=false, sankeyOrigin="all";
+const open = new Set();
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function normCo(s){ return String(s||"unknown").toLowerCase().replace(/[,.]/g," ").replace(/\b(inc|llc|ltd|corp|corporation|co|company|gmbh|plc|technologies|the)\b/g,"").replace(/[^a-z0-9]/g,"") || "unknown"; }
+function normPos(s){ return String(s||"").toLowerCase().replace(/\bsr\b/g,"senior").replace(/[^a-z0-9]/g,""); }
+function hash(str){ let h1=0xdeadbeef, h2=0x41c6ce57; for(let i=0;i<str.length;i++){ const ch=str.charCodeAt(i); h1=Math.imul(h1^ch,2654435761); h2=Math.imul(h2^ch,1597334677); } h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909); h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909); return (4294967296*(2097151&h2)+(h1>>>0)).toString(36); }
+function dayOf(s){ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||""); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; }
+function fmtDay(s){ const d=dayOf(s); return d ? d.toLocaleDateString(undefined,{month:"short",day:"numeric"}) : ""; }
+function fmtFull(s){ const d=dayOf(s); return d ? d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : ""; }
+function ago(s){ const d=dayOf(s); if(!d) return ""; const t=new Date(); t.setHours(0,0,0,0); const n=Math.round((t-d)/86400000); return n<=0?"today":n===1?"1 day ago":n+" days ago"; }
+function via(from){ const m=String(from||"").toLowerCase().match(/@([^>\s]+)/); if(!m) return ""; for(const k in ATS){ if(m[1]===k||m[1].endsWith("."+k)) return ATS[k]; } return ""; }
+function notice(msg){ const n=$("notice"); n.textContent=msg||""; n.hidden=!msg; }
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const cut = (v,n) => v==null ? "" : String(v).slice(0,n);
+
+/* ---------- reading the program's output ---------- */
+function parseRun(text){
+  let data;
+  try{ data = JSON.parse(text); }
+  catch{ throw new Error("That isn't valid JSON. Load the file written by job_tracker.py with --format json."); }
+  const list = Array.isArray(data) ? data : (data && Array.isArray(data.applications) ? data.applications : null);
+  if(!list) throw new Error("No list of applications in that file. Load the file written by job_tracker.py with --format json.");
+  const meta = Array.isArray(data) ? {} : {generated_at:cut(data.generated_at,40), account:cut(data.account,120), since:cut(data.since,20), before:cut(data.before,20), messages_read:Number(data.messages_read)||0};
+  const used = new Map(), apps = [];
+  for(const raw of list){
+    if(!raw || typeof raw!=="object" || !raw.company) continue;
+    const a = {
+      company:cut(raw.company,120), position:cut(raw.position,200),
+      status: normStatus(raw.status), item:cut(raw.item,200),
+      last_date:cut(raw.last_date,10), first_date:cut(raw.first_date||raw.last_date,10),
+      last_subject:cut(raw.last_subject,200), last_notification:cut(raw.last_notification,240), last_url:cut(raw.last_url,500),
+      notices:(Array.isArray(raw.notices)?raw.notices:[]).slice(0,60).map(n=>({id:cut(n.id,60), date:cut(n.date,10), status:normStatus(n.status), subject:cut(n.subject,200), from:cut(n.from,160), evidence:cut(n.evidence,240), url:cut(n.url,500)}))
+    };
+    let key = normCo(a.company) + "|" + (normPos(a.position) || "-");
+    const n = (used.get(key)||0) + 1; used.set(key, n); if(n>1) key += "#" + n;
+    a.key = key;
+    a.sig = hash(JSON.stringify(a));
+    apps.push(a);
+  }
+  if(!apps.length) throw new Error("That file has no applications in it. Try an earlier --since date.");
+  return {meta, apps};
+}
+
+/* ---------- storage ---------- */
+let writeChain = Promise.resolve();
+function saveSettings(patch){
+  settings = {...settings, ...patch};
+  render();
+  if(!storeOk) return;
+  const data = {overrides:settings.overrides, hidden:settings.hidden, run:settings.run, since:settings.since||""};
+  writeChain = writeChain.then(()=>settingsRef.set(data)).catch(e=>notice("Couldn't save that change ("+(e&&e.code||"error")+"). Try again."));
+}
+function describe(e){
+  const c = e && e.code;
+  if(c==="quota_exceeded") return "Storage is full, so some applications weren't saved. Load a file with a later --since date.";
+  if(c==="resource_exhausted") return "Saving is being rate limited. Wait a minute and load the file again.";
+  if(c==="revoked") return "This page lost access to saving. Reload it and try again.";
+  return "Couldn't finish saving (" + (c||"error") + "). Load the file again to retry.";
+}
+async function withRetry(fn){
+  try{ return await fn(); }
+  catch(e){ if(e && e.code==="unavailable"){ await sleep(800+Math.random()*800); return fn(); } throw e; }
+}
+async function pool(tasks, size, onDone){
+  let i=0, done=0;
+  const worker = async () => { while(i<tasks.length){ const t=tasks[i++]; await withRetry(t); onDone(++done, tasks.length); } };
+  await Promise.all(Array.from({length:Math.min(size,tasks.length)}, worker));
+}
+function progress(done, total, title){
+  $("saving").hidden = !total;
+  if(title) $("saveTitle").textContent = title;
+  $("saveBar").style.width = total ? Math.round(done/total*100)+"%" : "0%";
+  $("saveNum").textContent = total ? done+" / "+total : "";
+}
+
+async function importRun(text, fileName){
+  if(importing) return;
+  let run;
+  try{ run = parseRun(text); } catch(e){ notice(e.message); return; }
+  importing = true; notice(""); open.clear(); filterStatus = "all"; sankeyOrigin = "all";
+  const meta = {...run.meta, fileName:cut(fileName||"pasted JSON",120), loadedAt:Date.now(), count:run.apps.length};
+  try{
+    if(storeOk){
+      const next = new Map(run.apps.map(a => ["a"+hash(a.key), a]));
+      const tasks = [];
+      for(const [id,a] of next){ const cur = saved.get(id); if(!cur || cur.sig !== a.sig) tasks.push(() => appsCol.doc(id).set(a)); }
+      for(const id of saved.keys()) if(!next.has(id)) tasks.push(() => appsCol.doc(id).delete());
+      progress(0, tasks.length, "Saving");
+      await pool(tasks, 4, (d,t) => progress(d, t));
+      saveSettings({run:meta});
+    } else {
+      memory = run.apps;
+      settings = {...settings, run:meta};
+    }
+  } catch(e){ console.error(e); notice(describe(e)); }
+  finally { importing = false; progress(0, 0); helpOpen = false; render(); }
+}
+
+function readFile(file){
+  if(!file) return;
+  if(file.size > 8*1024*1024){ notice("That file is larger than 8 MB. Load the applications.json that job_tracker.py writes."); return; }
+  const r = new FileReader();
+  r.onload = () => importRun(String(r.result||""), file.name);
+  r.onerror = () => notice("Couldn't read that file.");
+  r.readAsText(file);
+}
+
+/* ---------- boot ---------- */
+render();
+(async () => {
+  const use = n => (window.claude && window.claude.use) ? window.claude.use(n).catch(()=>null) : Promise.resolve(null);
+  const [dbNs, user] = await Promise.all([use("db"), use("user")]);
+  const uid = user ? await user.id().catch(()=>null) : null;
+  if(dbNs && uid){
+    db = dbNs; storeOk = true;
+    settingsRef = db.doc(`data/users/${uid}/jobtracker`);
+    appsCol = settingsRef.collection("apps");
+    const timer = setTimeout(()=>{ if(!(settingsLoaded && appsLoaded)) notice("Your saved applications can't be reached yet. They'll appear once the connection comes back."); }, 10000);
+    const check = () => { if(settingsLoaded && appsLoaded){ clearTimeout(timer); if(!importing) notice(""); } };
+    settingsRef.onSnapshot(s => {
+      const d = s.data() || {};
+      settings = {overrides:d.overrides||{}, hidden:d.hidden||{}, run:d.run||null, since:d.since||""};
+      if(document.activeElement !== $("since")) $("since").value = settings.since || "";
+      if(!s.metadata?.fromCache) settingsLoaded = true;
+      check(); render();
+    }, e => { settingsLoaded = true; notice("Saved settings stopped syncing ("+(e.code||"error")+"). Reload the page to reconnect."); render(); });
+    appsCol.limit(1000).onSnapshot(q => {
+      saved = new Map(q.docs.map(d => [d.id, d.data()]));
+      if(!q.metadata?.fromCache) appsLoaded = true;
+      check(); render();
+    }, e => { appsLoaded = true; notice("Saved applications stopped syncing ("+(e.code||"error")+"). Reload the page to reconnect."); render(); });
+  } else {
+    settingsLoaded = appsLoaded = true;
+    notice("Saving isn't available in this view, so what you load lasts only until you close the page. Open it in claude.ai while signed in to keep it.");
+    render();
+  }
+})();
+
+/* ---------- build the list ---------- */
+function allApps(){ return storeOk ? [...saved.values()] : (memory || []); }
+function buildApps(){
+  const out = allApps().map(a => {
+    const v = {...a};
+    let status = normStatus(a.status);
+    let item = a.item || "";
+    const ov = settings.overrides[a.key];
+    v.overridden = false;
+    if(ov && STATUS[ov.status] && String(ov.at||"") >= String(a.last_date||"")){ status = ov.status; item = status==="pending" ? item : ""; v.overridden = true; }
+    v.status = status; v.item = status==="pending" ? item : "";
+    v.hidden = !!settings.hidden[a.key];
+    v.via = via((a.notices[0]||{}).from);
+    return v;
+  });
+  return out.sort((a,b) => {
+    if(a.status==="rejected" !== (b.status==="rejected")) return a.status==="rejected" ? 1 : -1;
+    return String(b.last_date).localeCompare(String(a.last_date)) || a.company.localeCompare(b.company);
+  });
+}
+
+/* ---------- render ---------- */
+function render(){
+  const ready = settingsLoaded && appsLoaded;
+  const all = buildApps();
+  const hasData = all.length > 0;
+
+  $("welcome").hidden = !(ready && (!hasData || helpOpen));
+  $("runbar").hidden = !(ready && hasData);
+  $("toolbar").hidden = !(ready && hasData);
+  if(settings.run){
+    const r = settings.run;
+    const range = r.since ? ("mail from " + fmtFull(r.since) + (r.before ? " to " + fmtFull(r.before) : " onward")) : "";
+    $("runTitle").textContent = (r.count ?? all.length) + " applications" + (r.account ? " · " + r.account : "");
+    $("runSub").textContent = [range, r.messages_read ? r.messages_read + " messages read" : "", r.generated_at ? "generated " + new Date(r.generated_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "", r.fileName ? "from " + r.fileName : ""].filter(Boolean).join(" · ");
+  } else {
+    $("runTitle").textContent = all.length + " applications";
+    $("runSub").textContent = "";
+  }
+  $("saveNote").textContent = storeOk ? "Your applications are saved privately to your account." : "";
+
+  const sinceStr = settings.since || "";
+  $("clearSince").hidden = !sinceStr;
+  let visible = all.filter(a => (showHidden || !a.hidden) && (!sinceStr || String(a.last_date) >= sinceStr));
+  const hiddenCount = all.filter(a=>a.hidden).length;
+  $("toggleHidden").hidden = hiddenCount===0;
+  $("toggleHidden").textContent = showHidden ? "Hide dismissed" : `Show ${hiddenCount} dismissed`;
+
+  const counts = {}; for(const a of visible) counts[a.status]=(counts[a.status]||0)+1;
+  const strip = $("strip");
+  if(visible.length){
+    let h = `<button class="chipf" type="button" data-f="all" aria-pressed="${filterStatus==="all"}"><span>All</span><span class="n">${visible.length}</span></button>`;
+    for(const k of Object.keys(STATUS)) if(counts[k]) h += `<button class="chipf" type="button" data-f="${k}" aria-pressed="${filterStatus===k}"><span class="dot" style="--c:var(${STATUS[k].c})"></span><span>${STATUS[k].label}</span><span class="n">${counts[k]}</span></button>`;
+    strip.innerHTML = h; strip.hidden = false;
+  } else strip.hidden = true;
+  if(filterStatus!=="all" && !counts[filterStatus]) filterStatus="all";
+
+  const shown = visible.filter(a => (filterStatus==="all"||a.status===filterStatus) && (!query || (a.company+" "+a.position).toLowerCase().includes(query)));
+  renderApplicationChart(shown, ready && hasData);
+  renderStatusSankey(shown, ready && hasData);
+  const L = $("ledger");
+  if(!ready){ L.hidden = false; L.innerHTML = `<div class="empty"><strong>Loading your tracker…</strong></div>`; return; }
+  if(!hasData){ L.hidden = true; return; }
+  L.hidden = false;
+  if(!shown.length){ L.innerHTML = `<div class="empty"><strong>Nothing matches</strong><p>Try a different search, status or date.</p></div>`; return; }
+
+  let h = `<div class="lhead"><span>Company · position</span><span>Status</span><span>Latest email</span><span style="text-align:right">Updated</span></div>`;
+  for(const a of shown){
+    const st = STATUS[a.status];
+    const isOpen = open.has(a.key);
+    const last = a.notices[a.notices.length-1] || {};
+    h += `<div class="app" data-key="${esc(a.key)}">
+      <button class="summary" type="button" aria-expanded="${isOpen}">
+        <span class="who"><span class="co">${esc(a.company)}</span>${a.via?` <span class="via">via ${esc(a.via)}</span>`:""}<span class="pos" style="display:block">${esc(a.position||"Position not stated")}</span></span>
+        <span class="statuscell"><span class="chip" style="--c:var(${st.c})"><span class="dot"></span>${st.label}</span>${a.item?`<span class="item">${esc(a.item)}</span>`:""}${a.overridden?`<span class="ovr">set by you</span>`:""}</span>
+        <span class="detail">${esc(a.last_notification||last.evidence||"")}<span class="subj">${esc(a.last_subject||last.subject||"")}</span></span>
+        <span class="when mono"><b>${esc(fmtDay(a.last_date))}</b>${esc(ago(a.last_date))}</span>
+      </button>
+      ${isOpen ? trail(a) : ""}
+    </div>`;
+  }
+  L.innerHTML = h;
+}
+
+function renderApplicationChart(apps, ready){
+  const chart = $("applicationChart");
+  chart.hidden = !ready;
+  if(!ready) return;
+
+  const counts = new Map();
+  for(const a of apps){
+    const key = a.first_date || a.last_date;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(key||"")) counts.set(key, (counts.get(key)||0)+1);
+  }
+  if(!counts.size){ $("chartSub").textContent = "No application dates match these filters"; $("chartBody").innerHTML = `<div class="chart-empty">No dates to chart</div>`; return; }
+
+  const keys = [...counts.keys()].sort();
+  const start = dayOf(keys[0]), end = dayOf(keys[keys.length-1]);
+  if(!start || !end){ $("chartSub").textContent = ""; $("chartBody").innerHTML = ""; return; }
+  const dates = [];
+  for(let d=new Date(start); d <= end; d.setDate(d.getDate()+1)){
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    dates.push({key, count:counts.get(key)||0});
+  }
+
+  const max = Math.max(...dates.map(d => d.count), 1);
+  const width=720, height=220, left=34, right=16, top=28, bottom=38;
+  const plotW=width-left-right, plotH=height-top-bottom;
+  const step=plotW/Math.max(dates.length,1), barW=Math.min(52, step*.62);
+  let svg = `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Applications submitted by date">`;
+  for(let i=0;i<=max;i++){
+    const y=top+plotH-(i/max)*plotH;
+    svg += `<line class="chart-grid" x1="${left}" y1="${y}" x2="${width-right}" y2="${y}"></line><text x="${left-8}" y="${y+4}" text-anchor="end">${i}</text>`;
+  }
+  dates.forEach((d,i)=>{
+    const barH=d.count/max*plotH;
+    const x=left+i*step+(step-barW)/2;
+    const y=top+plotH-barH;
+    const title = d.count ? `<title>${d.count} application${d.count===1?"":"s"} on ${esc(fmtFull(d.key))}</title>` : "";
+    svg += `<rect class="chart-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="4">${title}</rect>`;
+    if(d.count) svg += `<text class="chart-value" x="${(x+barW/2).toFixed(1)}" y="${Math.max(top+10,y-7).toFixed(1)}">${d.count}</text>`;
+    const labelStep = Math.max(1, Math.ceil(dates.length/8));
+    if(i%labelStep===0 || i===dates.length-1) svg += `<text class="chart-date" x="${(x+barW/2).toFixed(1)}" y="${height-12}">${esc(fmtDay(d.key))}</text>`;
+  });
+  svg += `</svg>`;
+  const total = apps.length;
+  $("chartSub").textContent = `${total} application${total===1?"":"s"} across ${dates.length} day${dates.length===1?"":"s"}`;
+  $("chartBody").innerHTML = svg;
+}
+
+// In the flow diagram the same status reads "Other" where an application started and "Unknown" where it stands now.
+function flowLabel(name, side){
+  if(name==="unknown") return side==="start" ? "Other" : "Unknown";
+  return STATUS[name]?.label || name;
+}
+
+function statusColor(status){
+  if(status==="no-update") return "var(--faint)";
+  const st = STATUS[status] || STATUS.unknown;
+  return `var(${st.c})`;
+}
+
+// Both "applied" and "referred" are ways an application starts; a referral anywhere in the trail marks it as referred.
+function originOf(a){ return (a.notices||[]).some(n => n.status==="referred") || a.status==="referred" ? "referred" : "applied"; }
+
+function renderStatusSankey(allApps, ready){
+  const sankey = $("statusSankey");
+  sankey.hidden = !ready;
+  if(!ready) return;
+
+  const originCounts = {applied:0, referred:0};
+  for(const a of allApps) originCounts[originOf(a)]++;
+  if(sankeyOrigin!=="all" && !originCounts[sankeyOrigin]) sankeyOrigin = "all";
+  const filterEl = $("sankeyFilter");
+  filterEl.hidden = !(originCounts.applied && originCounts.referred) && sankeyOrigin==="all";
+  filterEl.innerHTML = `<span class="sankey-caption">Started as</span>` + [["all","All",allApps.length],["applied",STATUS.applied.label,originCounts.applied],["referred",STATUS.referred.label,originCounts.referred]]
+    .filter(([k,,n]) => k==="all" || n)
+    .map(([k,label,n]) => `<button class="chipf" type="button" data-o="${k}" aria-pressed="${sankeyOrigin===k}">${k==="all"?"":`<span class="dot" style="--c:var(${STATUS[k].c})"></span>`}<span>${label}</span><span class="n">${n}</span></button>`).join("");
+  const apps = sankeyOrigin==="all" ? allApps : allApps.filter(a => originOf(a)===sankeyOrigin);
+
+  const flows = new Map();
+  for(const a of apps){
+    const notices = (a.notices||[]).filter(n => n.status && STATUS[n.status]).slice().sort((x,y) => String(x.date).localeCompare(String(y.date)));
+    const initial = notices.length ? notices[0].status : a.status;
+    const current = a.status;
+    if(!initial || !current) continue;
+    const terminal = initial === current ? "no-update" : current;
+    const key = `${initial}|${terminal}`;
+    flows.set(key,(flows.get(key)||0)+1);
+  }
+  if(!flows.size){
+    $("sankeySub").textContent = "No status transitions match these filters";
+    $("sankeyBody").innerHTML = `<div class="chart-empty">No status flow to show</div>`;
+    return;
+  }
+
+  const links = [...flows.entries()].map(([key,value]) => {
+    const [source,target] = key.split("|");
+    return {source,target,value};
+  });
+  const sources = [...new Set(links.map(link => link.source))];
+  const targets = [...new Set(links.map(link => link.target))];
+  const maxValue = Math.max(...links.map(link => link.value));
+  const height=320, width=900, left=180, right=704;
+  const nodeWidth=16, plotTop=28, plotHeight=236;
+
+  function layout(names, side){
+    const totals = names.map(name => side==="source"
+      ? links.filter(link => link.source===name).reduce((sum,link)=>sum+link.value,0)
+      : links.filter(link => link.target===name).reduce((sum,link)=>sum+link.value,0));
+    const total = totals.reduce((sum,value)=>sum+value,0);
+    const gaps = Math.max(names.length-1,0)*10;
+    const scale = Math.max(0,(plotHeight-gaps)/Math.max(total,1));
+    let y=plotTop;
+    return names.map((name,index)=>{
+      const nodeHeight=Math.max(14,totals[index]*scale);
+      const node={name,y,height:nodeHeight};
+      y += nodeHeight+10;
+      return node;
+    });
+  }
+  const sourceNodes=layout(sources,"source");
+  const targetNodes=layout(targets,"target");
+  const sourceOffsets=new Map(sources.map(name=>[name,0]));
+  const targetOffsets=new Map(targets.map(name=>[name,0]));
+
+  let svg=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Application status transitions">`;
+  for(const link of links){
+    const source=sourceNodes.find(node=>node.name===link.source);
+    const target=targetNodes.find(node=>node.name===link.target);
+    const sourceTotal=links.filter(item=>item.source===link.source).reduce((sum,item)=>sum+item.value,0);
+    const targetTotal=links.filter(item=>item.target===link.target).reduce((sum,item)=>sum+item.value,0);
+    const sourceScale=source.height/Math.max(sourceTotal,1);
+    const targetScale=target.height/Math.max(targetTotal,1);
+    const ribbonSource=link.value*sourceScale;
+    const ribbonTarget=link.value*targetScale;
+    const sy=source.y+sourceOffsets.get(link.source)+ribbonSource/2;
+    const ty=target.y+targetOffsets.get(link.target)+ribbonTarget/2;
+    sourceOffsets.set(link.source,sourceOffsets.get(link.source)+ribbonSource);
+    targetOffsets.set(link.target,targetOffsets.get(link.target)+ribbonTarget);
+    const opacity=.28+.42*(link.value/maxValue);
+    const sx1=sy-ribbonSource/2, sx2=sy+ribbonSource/2;
+    const tx1=ty-ribbonTarget/2, tx2=ty+ribbonTarget/2;
+    const targetLabel=target.name==="no-update"?"No update":flowLabel(target.name,"current");
+    svg += `<path d="M ${left+nodeWidth} ${sx1} C ${left+210} ${sx1}, ${right-210} ${tx1}, ${right} ${tx1} L ${right} ${tx2} C ${right-210} ${tx2}, ${left+210} ${sx2}, ${left+nodeWidth} ${sx2} Z" fill="${statusColor(link.source)}" fill-opacity="${opacity.toFixed(2)}"><title>${esc(flowLabel(source.name,"start"))} to ${esc(targetLabel)}: ${link.value}</title></path>`;
+  }
+  for(const node of sourceNodes){
+    svg += `<rect x="${left}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="3" fill="${statusColor(node.name)}"></rect>`;
+    const label=node.name==="Start"?"Start":flowLabel(node.name,"start");
+    svg += `<text x="${left-10}" y="${node.y+node.height/2+4}" text-anchor="end">${esc(label)}</text>`;
+  }
+  for(const node of targetNodes){
+    svg += `<rect x="${right}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="3" fill="${statusColor(node.name)}"></rect>`;
+    const label=node.name==="no-update"?"No update":flowLabel(node.name,"current");
+    svg += `<text x="${right+nodeWidth+10}" y="${node.y+node.height/2+4}">${esc(label)}</text>`;
+  }
+  svg += `</svg>`;
+  const transitions=[...flows.values()].reduce((sum,value)=>sum+value,0);
+  $("sankeySub").textContent = `${transitions} application status transition${transitions===1?"":"s"}`;
+  $("sankeyBody").innerHTML = svg;
+}
+
+function trail(a){
+  let li = "";
+  for(const e of a.notices.slice().reverse()){
+    const st = STATUS[e.status] || STATUS.unknown;
+    li += `<li><span class="d mono">${esc(fmtFull(e.date))}</span>
+      <span class="c"><span class="chip" style="--c:var(${st.c})"><span class="dot"></span>${st.label}</span></span>
+      <span class="t">${esc(e.evidence||"")}<span class="s">${esc(e.subject||"")}${e.from?" — "+esc(e.from):""}</span></span>
+      ${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener">Open in Gmail</a>`:"<span></span>"}</li>`;
+  }
+  const ov = settings.overrides[a.key];
+  const cur = a.overridden ? ov.status : "";
+  let opts = `<option value="">Automatic (from latest email)</option>`;
+  for(const k in STATUS) opts += `<option value="${k}" ${cur===k?"selected":""}>${STATUS[k].label}</option>`;
+  const sid = "ovr-" + a.key.replace(/[^a-z0-9]/gi,"_");
+  return `<div class="trail"><ul class="tl">${li}</ul>
+    <div class="edit"><label for="${sid}">Status</label><select id="${sid}" data-act="override">${opts}</select>
+    <button class="btn" type="button" data-act="hide">${a.hidden?"Restore to list":"Not a job application"}</button></div>
+    <p class="hint">A status you set holds until a newer email from this company arrives in a later file.</p></div>`;
+}
+
+/* ---------- events ---------- */
+$("strip").addEventListener("click", e => { const b=e.target.closest("[data-f]"); if(!b) return; filterStatus=b.dataset.f; render(); });
+$("sankeyFilter").addEventListener("click", e => { const b=e.target.closest("[data-o]"); if(!b) return; sankeyOrigin=b.dataset.o; render(); });
+$("q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
+$("toggleHidden").addEventListener("click", () => { showHidden=!showHidden; render(); });
+$("since").addEventListener("change", e => saveSettings({since:e.target.value||""}));
+$("clearSince").addEventListener("click", () => { $("since").value=""; saveSettings({since:""}); });
+$("showHelp").addEventListener("click", () => { helpOpen=!helpOpen; render(); if(helpOpen) $("welcome").scrollIntoView({behavior:"smooth", block:"start"}); });
+
+$("ledger").addEventListener("click", e => {
+  const appEl = e.target.closest(".app"); if(!appEl) return;
+  const key = appEl.dataset.key;
+  if(e.target.closest(".summary")){ open.has(key)?open.delete(key):open.add(key); render(); return; }
+  if(e.target.closest('[data-act="hide"]')){
+    const hidden = {...settings.hidden}; if(hidden[key]) delete hidden[key]; else hidden[key]=true;
+    saveSettings({hidden});
+  }
+});
+$("ledger").addEventListener("change", e => {
+  const sel = e.target.closest('[data-act="override"]'); if(!sel) return;
+  const key = sel.closest(".app").dataset.key;
+  const app = buildApps().find(a=>a.key===key); if(!app) return;
+  const overrides = {...settings.overrides};
+  if(sel.value) overrides[key] = {status:sel.value, at:app.last_date}; else delete overrides[key];
+  saveSettings({overrides});
+});
+
+/* loading a file: picker, drop, paste */
+document.addEventListener("click", e => { if(e.target.closest("[data-pick]")) $("file").click(); });
+$("file").addEventListener("change", e => { readFile(e.target.files[0]); e.target.value = ""; });
+$("pasteGo").addEventListener("click", () => { const t=$("pasteArea").value.trim(); if(!t){ notice("Paste the contents of applications.json first."); return; } importRun(t, "pasted JSON"); });
+const drop = $("drop");
+["dragenter","dragover"].forEach(ev => document.addEventListener(ev, e => { if(e.dataTransfer && [...(e.dataTransfer.types||[])].includes("Files")){ e.preventDefault(); drop.classList.add("over"); } }));
+["dragleave","drop"].forEach(ev => document.addEventListener(ev, e => { if(ev==="dragleave" && e.relatedTarget) return; drop.classList.remove("over"); }));
+document.addEventListener("drop", e => { if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){ e.preventDefault(); readFile(e.dataTransfer.files[0]); } });
+
+/* copy buttons on the commands */
+document.addEventListener("click", async e => {
+  const b = e.target.closest(".cmd button"); if(!b) return;
+  const box = b.closest(".cmd"), code = box.querySelector("code");
+  try{ await navigator.clipboard.writeText(code.textContent); b.textContent = "Copied"; }
+  catch{ const r=document.createRange(); r.selectNodeContents(code); const s=getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+  setTimeout(()=>{ b.textContent = "Copy"; }, 1800);
+});
+})();
+</script>
