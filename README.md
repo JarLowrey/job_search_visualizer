@@ -16,7 +16,7 @@ Two small Python programs (standard library only, Python 3.9+) and a web page.
 1. Turn on 2-Step Verification for the Google account, then create an app password at https://myaccount.google.com/apppasswords.
 2. Put `gmail_scraper.py` and `job_tracker.py` in the same folder.
 
-3. Copy `.env.example` to `.env` and put the app password in it. `.env` is gitignored.
+3. Copy `.env.example` to `.env` and put your Gmail address (`GMAIL_USER`) and the app password (`GMAIL_APP_PASSWORD`) in it. `.env` is gitignored. `--user` on the command line overrides `GMAIL_USER`.
 
 The password is read from `GMAIL_APP_PASSWORD` in `.env` (next to `gmail_scraper.py`) or the environment (the environment wins; spaces are ignored), or asked for when the program starts. The program never writes it anywhere.
 
@@ -24,13 +24,13 @@ The password is read from `GMAIL_APP_PASSWORD` in `.env` (next to `gmail_scraper
 
 ```
 # see what would be downloaded, without saving anything
-python gmail_scraper.py --user you@gmail.com --since 2026-10-20 --dry-run
+python gmail_scraper.py --since 2026-10-20 --dry-run
 
 # download, classify and write the file the web page loads
-python job_tracker.py imap --user you@gmail.com --since 2026-10-20 --format json --out applications.json
+python job_tracker.py imap --since 2026-10-20 --format json --out applications.json
 
 # or keep the raw mail too, so you can re-run the rules without downloading again
-python job_tracker.py imap --user you@gmail.com --since 2026-10-20 --save-emails emails.json --format json --out applications.json
+python job_tracker.py imap --since 2026-10-20 --save-emails emails.json --format json --out applications.json
 python job_tracker.py scan emails.json --format table
 ```
 

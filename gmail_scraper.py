@@ -11,7 +11,7 @@ One-time setup
      A GMAIL_APP_PASSWORD already set in the environment takes precedence.
 
 Run
-  python gmail_scraper.py --user you@gmail.com --since 2026-10-20 --out emails.json
+  python gmail_scraper.py --since 2026-10-20 --out emails.json
   python job_tracker.py scan emails.json --format json --out applications.json
 
   --before DATE   stop at this date (exclusive).  Dates are UTC days.

@@ -493,6 +493,8 @@ class CommandLineErrors(unittest.TestCase):
 
     def test_user_required(self):
         os.environ.pop("GMAIL_USER", None)
+        gs.ENV_FILE, old = os.path.join(tempfile.gettempdir(), "no-such-dir", ".env"), gs.ENV_FILE
+        self.addCleanup(setattr, gs, "ENV_FILE", old)
         with self.assertRaises(SystemExit):
             self.run_main("--since", "2026-10-20")
 

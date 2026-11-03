@@ -152,12 +152,12 @@ details.paste .body{display:flex;flex-direction:column;gap:8px;margin-top:10px;a
       </div>
       <div class="step">
         <span class="num">2 · CHECK WHAT WOULD BE DOWNLOADED</span>
-        <div class="cmd" data-copy><code>python gmail_scraper.py --user jarlowrey@gmail.com --since 2026-10-20 --dry-run</code><button type="button">Copy</button></div>
+        <div class="cmd" data-copy><code>python gmail_scraper.py --since 2026-10-20 --dry-run</code><button type="button">Copy</button></div>
         <p>Prints the Gmail search and how many messages match. Nothing is saved.</p>
       </div>
       <div class="step">
         <span class="num">3 · EVERY TIME YOU WANT AN UPDATE</span>
-        <div class="cmd" data-copy><code>python job_tracker.py imap --user jarlowrey@gmail.com --since 2026-10-20 --format json --out applications.json</code><button type="button">Copy</button></div>
+        <div class="cmd" data-copy><code>python job_tracker.py imap --since 2026-10-20 --format json --out applications.json</code><button type="button">Copy</button></div>
         <p>Change <span class="mono">--since</span> to look further back. Add <span class="mono">--before</span> for an end date.</p>
       </div>
     </div>

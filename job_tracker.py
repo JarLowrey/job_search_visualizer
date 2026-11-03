@@ -3,9 +3,9 @@
 job_tracker.py - find your job applications in an email export and report each one's
 company, position and current status. Rules only (regular expressions); no AI involved.
 
-  python gmail_scraper.py --user you@gmail.com --since 2026-10-20 --out emails.json   # download
+  python gmail_scraper.py --since 2026-10-20 --out emails.json   # download
   python job_tracker.py scan emails.json [--since D] [--before D] [--format table|json|csv]  # sort
-  python job_tracker.py imap --user you@gmail.com --since 2026-10-20                  # both in one go
+  python job_tracker.py imap --since 2026-10-20                  # both in one go
   python job_tracker.py validate emails.json expected.json                            # check vs hand labels
 
 How it works
@@ -799,6 +799,8 @@ def validate(emails_path: str, expected_path: str) -> int:
 
 
 def main(argv=None) -> int:
+    import gmail_scraper
+    gmail_scraper.load_env_file()  # so GMAIL_USER / GMAIL_APP_PASSWORD in .env are visible below
     ap = argparse.ArgumentParser(description="Track job applications from email, with rules instead of AI.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -818,7 +820,8 @@ def main(argv=None) -> int:
     v.add_argument("emails"); v.add_argument("expected")
 
     g = sub.add_parser("imap", help="download from Gmail (gmail_scraper.py) and scan in one step")
-    g.add_argument("--user", required=True)
+    g.add_argument("--user", default=os.environ.get("GMAIL_USER"),
+                   help="Gmail address (default: GMAIL_USER from .env or the environment)")
     g.add_argument("--since", required=True)
     g.add_argument("--before")
     g.add_argument("--all", action="store_true", help="no keyword filter on the download")
@@ -833,8 +836,9 @@ def main(argv=None) -> int:
         messages = load_messages(a.emails)
         account = load_account(a.emails)
     else:
+        if not a.user:
+            ap.error("--user is required (or set GMAIL_USER in .env)")
         account = a.user
-        import gmail_scraper
         messages, query = gmail_scraper.fetch_messages(a.user, gmail_scraper.get_password(), a.since,
                                                        a.before, everything=a.all)
         if a.save_emails:
