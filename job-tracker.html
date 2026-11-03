@@ -385,6 +385,21 @@ render();
   }
 })();
 
+/* ---------- load applications.json by default ---------- */
+// Looks for applications.json next to this page. Loads it when it is newer than the run already saved.
+// Browsers often block fetch() on file:// pages; serve the folder (python -m http.server) or load the file by hand.
+(async () => {
+  try{
+    for(let i=0; i<100 && !(settingsLoaded && appsLoaded); i++) await sleep(100);
+    const res = await fetch("applications.json", {cache:"no-store"});
+    if(!res.ok) return;
+    const text = await res.text();
+    const gen = parseRun(text).meta.generated_at;
+    if(gen && settings.run && settings.run.generated_at === gen) return;
+    await importRun(text, "applications.json");
+  } catch(e){ /* no applications.json here, or not readable: the manual loader still works */ }
+})();
+
 /* ---------- build the list ---------- */
 function allApps(){ return storeOk ? [...saved.values()] : (memory || []); }
 function buildApps(){

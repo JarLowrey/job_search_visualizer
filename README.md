@@ -36,7 +36,9 @@ python job_tracker.py scan emails.json --format table
 
 `--since` is the configurable date (UTC day, inclusive). `--before` is an optional end date (exclusive). Add `--all` to `imap` or the scraper to download every message in the window instead of only keyword matches, which is the fallback if the keyword filter misses mail.
 
-Then open the page and load `applications.json`.
+The shortcut is `python main.py --since 2026-10-20`, which runs the scraper (writing `emails.json`) and then the tracker (writing `applications.json`).
+
+The page looks for `applications.json` next to it and loads it automatically when it is newer than the saved run. Browsers often block that on `file://` pages, so serve the folder (`python -m http.server`) or load the file by hand.
 
 ![Status filters, applications over time, and the status flow diagram](docs/screenshot.png)
 
