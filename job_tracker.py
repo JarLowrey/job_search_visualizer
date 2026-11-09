@@ -12,7 +12,8 @@ How it works
   1. Each message is checked: is it a status notice about an application you made?
      Sent mail, job-board marketing, account/security mail and cold recruiter outreach are dropped.
   2. Each notice gets a status: rejected, withdrawn, accepted, offer, interviewing,
-     pending (something is waiting on you), referred or applied (received/confirmed) or unknown (mentions an application, says nothing about its status).
+     a task waiting on you (assessment, scheduling, paperwork, or pending for anything else),
+     referred or applied (received/confirmed) or unknown (mentions an application, says nothing about its status).
   3. Company and position are pulled from the subject, the text and the signature.
   4. Notices are grouped into applications (company + position). An application's status is
      the status of its most recent notice.
@@ -69,6 +70,7 @@ PATTERNS = {
         r"\bsorry to (?:inform|tell|let)\b",
         r"\b(?:do|does) not (?:currently )?have an? (?:open|available|suitable|matching) (?:role|position|opening)s?\b",
         r"\bno (?:open|available|suitable) (?:role|position|opening)s?\b",
+        r"\b(?:don't|do not|didn't|did not) see (?:a |an )?(?:strong |good |clear |close |great )?(?:fit|match)\b",
     ],
     "withdrawn": [
         r"\bapplication (?:has been|was|is) withdrawn\b",
@@ -107,14 +109,20 @@ PATTERNS = {
         r"\binterview (?:schedule|details|logistics)\b",
         r"\byour (?:upcoming |scheduled )?(?:on-?site|virtual|phone|video|technical|panel) interviews?\b",
         r"\bthank(?:s| you)\b[^.!?]{0,50}\b(?:speak(?:ing)?|talk(?:ing)?|meet(?:ing)?|chat(?:ting)?|interview(?:ing)?) with\b",
+        # "You have completed the Industry Coding Assessment": the task is done and the next move is the employer's
+        r"\byou(?:'ve| have) (?:successfully )?completed (?:the |your )?(?:[\w'-]+ ){0,4}?(?:assessment|coding challenge|take-?home)\b",
     ],
     "pending": [
         r"\b(?:complete|take|finish|submit|start) (?:the |your |this |these |those |a |an |our |some )?(?:[\w'-]+ ){0,5}?(?:assessment|coding challenge|take-?home|questionnaire|screening questions|application questions|exercise|scenarios?|work (?:sample|simulation)|simulation|case study|homework|screen)\b",
-        r"\b(?:provide|submit|send|share|complete|answer|upload|fill)\s+(?:out\s+)?(?:some |the |any )?(?:additional|more|further|requested|required)\s+(?:application\s+)?(?:questions|information|details|documents|materials)\b",
+        r"\b(?:provide|submit|send|share|complete|answer|upload|fill)\s+(?:out\s+)?(?:some |the |any )?(?:additional|more|further|requested|required)\s+(?:application\s+)?(?:questions|information|details|documents|materials)\b(?!\s+about\s+(?:my|our|the|this)\b)",
         r"\baction (?:is )?required\b",
         r"\b(?:please|kindly) (?:reply|respond|upload|provide|send|submit|fill|confirm|complete|review and sign)\b",
         r"\b(?:is|are) (?:still )?(?:waiting|awaiting)(?: for| on)? your\b",
         r"\b(?:haven't|have not) (?:yet )?(?:seen|received|heard)\b[^.!?]{0,60}\byour\b",
+        r"\b(?:sign|agree to|agreement to)\s+(?:an?\s+|the\s+|our\s+)?(?:non-disclosure agreement|NDA)\b",
+        r"\b(?:please|kindly)\s+take a (?:few |couple of )?(?:moments?|minutes?) to (?:fill|complete|sign)\b",
+        # "Please let me know three dates and times that work best for you"
+        r"\b(?:let (?:me|us) know|send (?:me |us )?|share|provide|reply with)\s+(?:your |some |a few |\w+ )?(?:(?:dates?|days?) and )?(?:times?|availability|time slots?)\b",
     ],
     "referred": [
         r"\byou(?:'ve| have) been referred\b",
@@ -125,7 +133,8 @@ PATTERNS = {
     "applied": [
         r"\b(?:received|have received|has been received) (?:your|the) (?:job )?application\b",
         r"\b(?:your|the) application (?:has been|was|is) (?:received|submitted|successfully)",
-        r"\bthank(?:s| you) (?:so much )?for (?:applying|submitting|your application|your interest)\b",
+        r"\bthank(?:s| you) (?:so much |again )?for (?:applying|submitting|your application|your interest|completing your application)\b",
+        r"\bthank(?:s| you)\b[^.!?]{0,30}\b(?:choosing|deciding) to apply\b",
         r"\bwe(?:'ve| have| just| recently)? received your\b",
         r"\bapplication (?:sent|submitted)\b",
         r"\bapplication\b[^.!?\n]{0,100}\bwas (?:sent|submitted|received)\b",
@@ -137,6 +146,34 @@ PATTERNS = {
     ],
 }
 PATTERNS = {k: [re.compile(p, re.I) for p in v] for k, v in PATTERNS.items()}
+
+# A task waiting on you is reported as the kind of task it is; the first kind whose words appear wins.
+PENDING_KINDS = [
+    ("assessment", re.compile(r"\b(?:assessments?|coding challenge|challenge|take-?home|exercise|case study|homework|simulation|"
+                              r"work sample|codesignal|hackerrank|codility|pre-?screen|test)\b", re.I)),
+    ("scheduling", re.compile(r"\b(?:availability|times? that work|dates? and times?|time slots?|schedul\w*|book a time|calendar)\b", re.I)),
+    ("paperwork", re.compile(r"\b(?:NDA|non-disclosure|forms?|questionnaire|questions|information|details|documents?|materials|"
+                             r"upload|sign|consent|background check)\b", re.I)),
+]
+# statuses that mean something is waiting on you ("pending" is the catch-all)
+ACTION_STATUSES = ("assessment", "scheduling", "paperwork", "pending")
+
+
+# "Your invitation to complete the Industry Coding Assessment has expired": the task is gone, not waiting on you
+EXPIRED = re.compile(r"\b(?:invitation|assessment|challenge|link|test)\b[^.!?\n]{0,60}\b(?:has |have )?expired\b", re.I)
+# a later email about a task you already had: it belongs to the application with that task
+FOLLOW_UP = re.compile(r"\b(?:reminder|expire[sd]?|completed)\b", re.I)
+
+
+def pending_kind(*texts: str) -> str:
+    t = " ".join(x or "" for x in texts)
+    return next((kind for kind, rx in PENDING_KINDS if rx.search(t)), "pending")
+
+
+def coarse(status: str | None) -> str | None:
+    """The hand labels say "pending" for every kind of task."""
+    return "pending" if status in ACTION_STATUSES else status
+
 
 # "We're excited to move forward" says you advanced but not what happens next. It only decides the
 # status when nothing more concrete (an interview, a task waiting on you) is found in the email.
@@ -191,6 +228,8 @@ THIRD_PARTY_DOMAINS = {
 IGNORE_SENDERS = [re.compile(p, re.I) for p in (
     r"@(?:[\w-]+\.)*(?:github\.com|steampowered\.com|stackoverflow\.email|ollama\.com|greenhouse-jobs\.com)$",
     r"^(?:no-?reply@accounts\.google\.com|noreply-accounts@google\.com|cloudplatform-noreply@google\.com)$",
+    r"^job-?alerts?[-_.]?(?:no-?reply)?@",            # LinkedIn "X is hiring" job alerts
+
 )]
 # Subjects of account / marketing mail.
 IGNORE_SUBJECT = re.compile(
@@ -332,6 +371,7 @@ def _extract_company(subject: str, text: str, local: str, domain: str) -> tuple[
     cands.append(re.search(rf"(?i:application|request|update|assessment|interview|invitation)\s+(?i:for)\s+(?i:the\s+)?{NAME}", subject))
     cands.append(re.search(rf"(?i:your)\s+{NAME_LAZY}\s+(?i:application)\b", subject))           # "your Encamp application"
     cands.append(re.search(rf"(?i:offers?)\s+(?i:from|at|with)\s+{NAME}", subject))             # "offer from 2U"
+    cands.append(re.search(rf"(?i:assessment|challenge|test)\s+(?i:from)\s+{NAME}", subject))     # "Coding Assessment from Airbnb has expired"
     cands.append(re.search(rf"^\W*{NAME_LAZY}\s+[-–—|:]\s+\S", subject))                         # "Twitch - Request for ..."
     cands.append(re.search(rf"(?i:position|role|job|opening)\s+(?i:at|with)\s+{NAME}", subject))  # "Application for the position at X"
     for m in cands:
@@ -344,6 +384,8 @@ def _extract_company(subject: str, text: str, local: str, domain: str) -> tuple[
     # body: "Sent from Airbnb through CodeSignal", "applying to Shopify", "role at Encamp", "Encamp has reviewed"
     body_pats = [
         rf"Sent from {NAME_LAZY} through\b",
+        # CodeSignal: "Your score and assessment report will be shared with Airbnb soon."
+        rf"(?i:report|results?|score)\b[^.]{{0,40}}?\s(?i:shared with|sent to)\s+{NAME_LAZY}(?=\s+(?i:soon|shortly)\b|\s*[.!])",
         rf"(?i:applying|applied|apply|interest)\s+(?i:to|at|with|in)\s+(?i:the\s+)?(?i:our\s+)?{NAME}",
         rf"(?i:role|position|career|job|opening|opportunity|opportunities)s?\s+(?i:at|with)\s+(?i:the\s+)?{NAME}",
         rf"(?i:position|role)\b[^.]{{0,120}}?\s(?i:with|at)\s+(?i:the\s+)?{NAME}",
@@ -411,6 +453,9 @@ POSITION_LINE = re.compile(
 # "our Software Development Engineer role", "the Web Developer II position"
 POSITION_ROLE = re.compile(
     r"\b(?:the|our|this)\s+(?P<p>(?:[A-Z][\w/+#.&-]*\s+){1,6}?)(?:role|position|opening|opportunity)\b")
+# "application to our Senior / Staff Software Engineer, Mobile role", "apply to our Software Engineer, Frontend opening"
+POSITION_TO = re.compile(
+    r"(?i:application|applying|applied|apply)\s+(?i:to|for)\s+(?i:our|the)\s+(?P<p>[^\n.!?]{3,100}?)\s+(?i:role|position|opening)\b")
 _NOT_A_TITLE = {"this", "that", "new", "same", "open", "following", "next", "first", "last", "other", "right"}
 
 
@@ -426,6 +471,11 @@ def extract_position(subject: str, text: str) -> str | None:
         for m in POSITION.finditer(src):
             p = _clean_position(m.group("p"))
             if 3 <= len(p) <= 120 and TITLE_WORDS.search(p):
+                return p
+    for src in (subject, flat(text)):
+        for m in POSITION_TO.finditer(src):
+            p = _clean_position(m.group("p"))
+            if TITLE_WORDS.search(p):
                 return p
     for m in POSITION_LINE.finditer(text):
         p = _clean_position(m.group("p"))
@@ -446,8 +496,13 @@ MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*"
 def extract_item(subject: str, text: str, match_text: str) -> str:
     """What is waiting on you, with a due date if the email gives one."""
     s = re.sub(r"^(?:\s*(?:re|fw|fwd)\s*:|\s*\[[^\]]*\]|\s*(?:action required|next steps?|reminder)\s*:)+", "", subject, flags=re.I).strip()
+    invited = re.search(r"(?i)\binvited you to ((?:complete|take|submit)\b.+)$", s)
     if re.match(r"(?i)(?:complete|take|submit|schedule|upload|reply|respond|provide|confirm)\b", s):
         item = s
+    elif invited:                       # "Circle invited you to take Circle Pre-Screen (...) on CodeSignal"
+        item = invited.group(1)[:1].upper() + invited.group(1)[1:]
+    elif re.search(r"(?i)\bNDA\b|non-disclosure", match_text):
+        item = "Sign the NDA"
     else:
         item = match_text[:1].upper() + match_text[1:]
     m = re.search(rf"(?:expires?|due|deadline|by|before|until)\b[^.\n]{{0,60}}?\b({MONTH})\.? (\d{{1,2}})(?:st|nd|rd|th)?\b", flat(text), re.I)
@@ -515,6 +570,10 @@ def classify_message(msg: dict) -> dict:
     out["company"], out["company_guessed"] = _extract_company(subject, text, local, domain)
     if status == "pending":
         out["item"] = extract_item(subject, text, matched)
+        out["status"] = pending_kind(out["item"], evidence)
+        if EXPIRED.search(subject) or EXPIRED.search(evidence):
+            out["status"], out["item"] = "expired", None
+    out["reqs"] = req_ids(subject, text)
     return out
 
 
@@ -533,11 +592,26 @@ def same_company(a: str, b: str) -> bool:
     return n > 0 and ta[:n] == tb[:n]
 
 
+# requisition numbers: "R-111084", "JR2007944", "R28501", "REQ-1234"
+REQ_ID = re.compile(r"\b(?:JR|R|REQ)-?\d{4,}\b")
+
+
+def req_ids(subject: str, text: str) -> set[str]:
+    return {r.replace("-", "") for r in REQ_ID.findall(subject + "\n" + (text or "")[:2000])}
+
+
 def pos_key(p: str | None) -> str:
+    """The same role written differently matches: "R-111084 Senior Software Development Engineer",
+    "Senior Software Development Engineer - R-111084", "Software Engineer, AI Agents opportunity"."""
     if not p:
         return ""
+    p = REQ_ID.sub(" ", p)
+    p = re.sub(r"\((?:ref(?:erence)?\s*(?:id|#)?:?\s*)?[\w-]*\d[\w-]*\)", " ", p, flags=re.I)   # (Ref ID: 47964), (2026-5955)
     t = re.sub(r"[^a-z0-9]+", " ", p.lower().replace("–", "-").replace("—", "-"))
-    return " ".join({"sr": "senior", "jr": "junior"}.get(w, w) for w in t.split())
+    words = [{"sr": "senior", "jr": "junior"}.get(w, w) for w in t.split() if not (w.isdigit() and len(w) >= 5)]
+    while words and words[-1] in ("opportunity", "role", "position", "opening", "job"):
+        words.pop()
+    return " ".join(words)
 
 
 def iso(ts_ms: int) -> str:
@@ -549,8 +623,13 @@ def build_applications(notices: list[dict]) -> list[dict]:
     for n in sorted((n for n in notices if n["job"]), key=lambda n: n["ts"]):
         cands = [a for a in apps if same_company(a["company"], n["company"])]
         pk = pos_key(n["position"])
-        app = None
-        if pk:
+        reqs = n.get("reqs") or set()
+        # two different requisition numbers are two different jobs, even under the same title
+        cands = [a for a in cands if not (reqs and a["reqs"] and not reqs & a["reqs"])]
+        app = next((a for a in cands if reqs & a["reqs"]), None) if reqs else None
+        if app is not None:
+            pass
+        elif pk:
             app = next((a for a in cands if a["pk"] == pk), None)
             if app is None:
                 blank = [a for a in cands if not a["pk"]]
@@ -558,30 +637,44 @@ def build_applications(notices: list[dict]) -> list[dict]:
                     app = blank[-1]; app["pk"] = pk; app["position"] = n["position"]
         else:
             app = next((a for a in reversed(apps) if n["thread"] in a["threads"]), None)
+            if app is None and n["status"] in ("applied", "referred"):
+                # a new confirmation that names no role after a rejection is a new application, not the old one reopened
+                cands = [a for a in cands if a["notices"][-1]["status"] != "rejected"]
             if app is None and cands:
-                app = max(cands, key=lambda a: a["notices"][-1]["ts"])
+                open_task = [a for a in cands if a["notices"][-1]["status"] in ACTION_STATUSES]
+                follow_up = n["status"] in ("expired", "interviewing") or FOLLOW_UP.search(n["subject"])
+                app = max(open_task if follow_up and open_task else cands, key=lambda a: a["notices"][-1]["ts"])
         if app is None and pk:                  # same role discussed in the same thread under another name
             app = next((a for a in apps if a["pk"] == pk and n["thread"] in a["threads"]), None)
         if app is None:
-            app = {"company": n["company"], "position": n["position"], "pk": pk, "threads": set(), "notices": [],
+            app = {"company": n["company"], "position": n["position"], "pk": pk, "threads": set(), "notices": [], "reqs": set(),
                    "rank": (n.get("company_guessed", False), len(n["company"]))}
             apps.append(app)
         rank = (n.get("company_guessed", False), len(n["company"]))
         if rank < app["rank"]:                  # a name read from the text beats a domain guess; shorter beats longer
             app["company"], app["rank"] = n["company"], rank   # "Zoom" over "Zoom Communications"
+        if n["position"] and (not app["position"] or (REQ_ID.search(app["position"]) and not REQ_ID.search(n["position"]))):
+            app["position"] = n["position"]          # the title without a requisition number reads better
+            app["pk"] = app["pk"] or pk
         app["threads"].add(n["thread"])
+        app["reqs"] |= reqs
         app["notices"].append(n)
 
     result = []
     for a in apps:
-        last = a["notices"][-1]
+        rejected = False
+        for x in a["notices"]:
+            x["superseded"] = rejected and x["status"] in ACTION_STATUSES + ("expired",)
+            rejected = (rejected or x["status"] == "rejected") and x["status"] not in ("applied", "referred", "interviewing", "offer")
+        last = [x for x in a["notices"] if not x["superseded"]][-1]
         result.append({
             "company": a["company"], "position": a["position"], "status": last["status"],
-            "item": last.get("item") if last["status"] == "pending" else None,
+            "item": last.get("item") if last["status"] in ACTION_STATUSES else None,
             "last_date": iso(last["ts"]), "first_date": iso(a["notices"][0]["ts"]),
             "last_subject": last["subject"], "last_notification": last["evidence"], "last_url": last["url"],
             "notices": [{"id": x["id"], "date": iso(x["ts"]), "status": x["status"], "subject": x["subject"],
-                         "from": x["from"], "evidence": x.get("evidence", ""), "url": x["url"]}
+                         "from": x["from"], "evidence": x.get("evidence", ""), "url": x["url"],
+                         **({"superseded": True} if x["superseded"] else {})}
                         for x in a["notices"]],
         })
     return sorted(result, key=lambda r: r["last_date"], reverse=True)
@@ -655,7 +748,7 @@ def render(apps: list[dict], fmt: str, meta: dict | None = None) -> str:
 # ------------------------------------------------------------------ manual overrides
 
 OVERRIDES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "overrides.json")
-OVERRIDE_STATUSES = set(STATUS_ORDER) | {"unknown"}
+OVERRIDE_STATUSES = set(STATUS_ORDER) | set(ACTION_STATUSES) | {"expired", "unknown"}
 
 
 def load_overrides(path: str | None = None) -> list[dict]:
@@ -687,7 +780,7 @@ def apply_overrides(apps: list[dict], overrides: list[dict]) -> list[dict]:
             a["status"], a["manual_status"] = o["status"], True
             if o.get("note"):
                 a["status_note"] = o["note"]
-            if o["status"] != "pending":
+            if o["status"] not in ACTION_STATUSES:
                 a["item"] = None
     return apps
 
@@ -729,13 +822,13 @@ def validate(emails_path: str, expected_path: str) -> int:
         elif want["job"] and got["job"]:
             tp += 1; status_total += 1
             ok = _accepted(want, "status")
-            if got["status"] == ok[0]:
+            if coarse(got["status"]) == ok[0]:
                 status_ok += 1
-            elif got["status"] in ok:
+            elif coarse(got["status"]) in ok:
                 status_alt += 1
             else:
                 problems.append(f"STATUS   {subj!r}: expected {ok[0]}"
-                                + (f" (or {', '.join(ok[1:])})" if len(ok) > 1 else "") + f", got {got['status']}")
+                                + (f" (or {', '.join(ok[1:])})" if len(ok) > 1 else "") + f", got {coarse(got['status'])}")
         elif want["job"]:
             fn += 1; problems.append(f"MISSED   {subj!r}: expected {want['status']} notice, dropped ({got['reason']})")
         elif got["job"]:
@@ -760,9 +853,9 @@ def validate(emails_path: str, expected_path: str) -> int:
         used.add(hit)
         a = apps[hit]
         errs, soft = [], False
-        if a["status"] not in _accepted(w, "status"):
+        if coarse(a["status"]) not in _accepted(w, "status"):
             errs.append(f"status {a['status']} != {w['status']}")
-        soft |= a["status"] != w["status"]
+        soft |= coarse(a["status"]) != w["status"]
         if a["last_date"] not in _accepted(w, "last_date"):
             errs.append(f"date {a['last_date']} != {w['last_date']}")
         soft |= a["last_date"] != w["last_date"]

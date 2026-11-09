@@ -102,7 +102,7 @@ class Classification(unittest.TestCase):
             "offer": "We are pleased to offer you the position. Your offer letter is attached.",
             "accepted": "Thank you for accepting our offer! Welcome aboard. Your start date is Monday.",
             "withdrawn": "This confirms your application has been withdrawn.",
-            "pending": "Please complete the coding challenge to continue your application.",
+            "assessment": "Please complete the coding challenge to continue your application.",
             "referred": "You've been referred by Sam for your application to the Backend Engineer position.",
         }
         for want, body in cases.items():
@@ -133,8 +133,8 @@ class Classification(unittest.TestCase):
                 "Please complete the coding assessment for your application. It expires November 5.",
                 "no-reply@codesignal.com", mid="p", when=ms(2026, 10, 22)),
         ])
-        self.assertEqual([n["status"] for n in apps[0]["notices"]], ["referred", "pending"])
-        self.assertEqual(apps[0]["status"], "pending")
+        self.assertEqual([n["status"] for n in apps[0]["notices"]], ["referred", "assessment"])
+        self.assertEqual(apps[0]["status"], "assessment")
         self.assertIn("Nov 5", apps[0]["item"])
 
     def test_internet_is_not_an_internship_title(self):
@@ -179,8 +179,27 @@ class Classification(unittest.TestCase):
     def test_pending_item_includes_due_date(self):
         n = self.classify("Complete the Hooli coding challenge",
                           "Please complete the coding challenge by October 31 to continue your application.")
-        self.assertEqual(n["status"], "pending")
+        self.assertEqual(n["status"], "assessment")
         self.assertIn("(due Oct 31)", n["item"])
+
+    def test_tasks_are_split_by_kind(self):
+        cases = {
+            "assessment": ("Next Step: Complete the Acme coding assessment", "Please complete the coding assessment for your application."),
+            "scheduling": ("Phone Screen", "Thanks for your application. Please let me know three dates and times that work best for you."),
+            "paperwork": ("Application Confirmation and NDA Request", "Thanks for applying to Acme! We kindly request "
+                          "your agreement to a Non-Disclosure Agreement (NDA)."),
+            "pending": ("Your application", "Action required: please confirm your application."),
+        }
+        for want, (subject, body) in cases.items():
+            with self.subTest(want):
+                self.assertEqual(self.classify(subject, body)["status"], want)
+
+    def test_more_confirmation_and_rejection_wording(self):
+        self.assertEqual(self.status("Thank you again for your interest in the Senior Software Engineer position.",
+                                     subject="Acme: Thanks for Completing Your Application"), "applied")
+        self.assertEqual(self.status("A huge thank you for choosing to apply for a role here at Acme."), "applied")
+        self.assertEqual(self.status("After reviewing your experience, we unfortunately don't see a strong match "
+                                     "for our current open roles."), "rejected")
 
     def test_dropped_messages_have_reasons(self):
         cases = [
@@ -363,6 +382,63 @@ class Grouping(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(jt.build_applications([]), [])
+
+
+class RequisitionGrouping(unittest.TestCase):
+    def test_same_requisition_written_differently_is_one_application(self):
+        _, apps = jt.scan_messages([
+            msg("Thank you for your application for the Senior Software Development Engineer - R-111084",
+                "Thank you for your application for the Senior Software Development Engineer - R-111084.",
+                "no-reply@acme.com", mid="a", when=ms(2026, 11, 3)),
+            msg("Acme | Hiring Manager Screen Confirmation | R-111084 Senior Software Development Engineer",
+                "I'm pleased to confirm your interview for the Senior Software Development Engineer role.",
+                "recruiter@acme.com", mid="b", when=ms(2026, 11, 6)),
+        ])
+        self.assertEqual(len(apps), 1)
+        self.assertEqual(apps[0]["status"], "interviewing")
+
+    def test_notice_without_title_joins_by_requisition(self):
+        _, apps = jt.scan_messages([
+            msg("Thank you for your application for the Backend Engineer - R-200001",
+                "Thank you for your application for the Backend Engineer - R-200001.", "no-reply@acme.com", mid="a",
+                when=ms(2026, 11, 1)),
+            msg("Thank you for your application for the Frontend Engineer - R-200002",
+                "Thank you for your application for the Frontend Engineer - R-200002.", "no-reply@acme.com", mid="b",
+                when=ms(2026, 11, 2)),
+            msg("Phone Screen | For: R-200001", "We received your application. Please let me know three dates and "
+                "times that work for a call.", "recruiter@acme.com", mid="c", when=ms(2026, 11, 3)),
+        ])
+        backend = next(a for a in apps if "Backend" in a["position"])
+        self.assertEqual(backend["status"], "scheduling")
+        self.assertEqual(next(a for a in apps if "Frontend" in a["position"])["status"], "applied")
+
+    def test_reminders_follow_their_task_and_do_not_reopen_a_rejection(self):
+        _, apps = jt.scan_messages([
+            msg("Thank you for applying to Acme!", "We received your application for the Backend Engineer role at Acme.",
+                "no-reply@acme.com", mid="a1", when=ms(2026, 10, 29, 10)),
+            msg("Next Step: Complete the Acme coding assessment", "Please complete the coding assessment for your application.",
+                "no-reply@codesignal.com", mid="t1", when=ms(2026, 10, 29, 11)),
+            msg("Thank you for your interest in Acme!", "Unfortunately we decided not to move forward with your "
+                "application for Backend Engineer.", "no-reply@acme.com", mid="r1", when=ms(2026, 11, 3, 10)),
+            msg("Final Reminder: Your Acme coding assessment expires soon!", "Please complete the coding assessment "
+                "for your application. Sent from Acme through CodeSignal.", "no-reply@codesignal.com", mid="t2",
+                when=ms(2026, 11, 3, 12)),
+            msg("Thank you for applying to Acme!", "We received your application for the Frontend Engineer role at Acme.",
+                "no-reply@acme.com", mid="a2", when=ms(2026, 11, 5, 10)),
+            msg("Coding Assessment from Acme has expired", "Your invitation to complete the coding assessment for your "
+                "application has expired.", "no-reply@codesignal.com", mid="x", when=ms(2026, 11, 5, 11)),
+        ])
+        backend = next(a for a in apps if "Backend" in a["position"])
+        frontend = next(a for a in apps if "Frontend" in a["position"])
+        self.assertEqual(backend["status"], "rejected")
+        self.assertEqual([n["status"] for n in backend["notices"]][-1], "expired")
+        self.assertEqual(frontend["status"], "applied")
+
+    def test_pos_key_ignores_requisition_numbers_and_trailing_words(self):
+        self.assertEqual(jt.pos_key("R-111084 Senior Software Development Engineer"),
+                         jt.pos_key("Sr Software Development Engineer - R-111084"))
+        self.assertEqual(jt.pos_key("Software Engineer, AI Agents opportunity"), jt.pos_key("Software Engineer, AI Agents"))
+        self.assertEqual(jt.pos_key("Staff Engineer (Ref ID: 47964)"), jt.pos_key("Staff Engineer"))
 
 
 class Scanning(unittest.TestCase):

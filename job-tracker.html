@@ -7,18 +7,18 @@
 /* Layout: one working column — the run you loaded, a status strip that doubles as filters, then a dense ledger of applications that expand into their email trail. */
 :root{
   --bg:#f5f6f8; --surface:#ffffff; --sunk:#eef1f5; --ink:#17202a; --muted:#5a6676; --faint:#8a95a3; --line:#dde2e9; --accent:#2350c4; --accent-ink:#ffffff;
-  --st-applied:#3e5f8a; --st-referred:#287d8e; --st-pending:#a86400; --st-interviewing:#6a3fb5; --st-offer:#1d7f4e; --st-accepted:#0f6b3c; --st-rejected:#b23a3a; --st-withdrawn:#6b7280; --st-other:#0f7480;
+  --st-applied:#3e5f8a; --st-referred:#287d8e; --st-pending:#a86400; --st-assessment:#c2410c; --st-scheduling:#b8327a; --st-paperwork:#7a6a00; --st-expired:#8a7462; --st-interviewing:#6a3fb5; --st-offer:#1d7f4e; --st-accepted:#0f6b3c; --st-rejected:#b23a3a; --st-withdrawn:#6b7280; --st-other:#0f7480;
   --warn-bg:#fff4e0; --warn-ink:#7a4a00; --code-bg:#12181f; --code-ink:#dbe4ee;
   --f-ui:"Schibsted Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0f1318; --surface:#161c23; --sunk:#1c242d; --ink:#e5eaf0; --muted:#9aa6b5; --faint:#6f7b8a; --line:#28323d; --accent:#7ea3ff; --accent-ink:#0b1220;
-  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
+  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-assessment:#fb9a5b; --st-scheduling:#f28dc0; --st-paperwork:#d9c75a; --st-expired:#b8a493; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
   --warn-bg:#33270f; --warn-ink:#f3cf8a; --code-bg:#0a0e13; --code-ink:#cfd9e4; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1318; --surface:#161c23; --sunk:#1c242d; --ink:#e5eaf0; --muted:#9aa6b5; --faint:#6f7b8a; --line:#28323d; --accent:#7ea3ff; --accent-ink:#0b1220;
-  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
+  --st-applied:#8fb0dc; --st-referred:#5fc8d2; --st-pending:#f0b452; --st-assessment:#fb9a5b; --st-scheduling:#f28dc0; --st-paperwork:#d9c75a; --st-expired:#b8a493; --st-interviewing:#b796f2; --st-offer:#5fcf8f; --st-accepted:#7fe0a6; --st-rejected:#f08a8a; --st-withdrawn:#a0a8b4; --st-other:#5fc8d2;
   --warn-bg:#33270f; --warn-ink:#f3cf8a; --code-bg:#0a0e13; --code-ink:#cfd9e4; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45}
@@ -227,16 +227,22 @@ details.paste .body{display:flex;flex-direction:column;gap:8px;margin-top:10px;a
 const STATUS = {
   applied:{label:"Applied", c:"--st-applied"},
   referred:{label:"Referred", c:"--st-referred"},
-  pending:{label:"Pending", c:"--st-pending"},
+  assessment:{label:"Assessment", c:"--st-assessment"},
+  scheduling:{label:"Scheduling", c:"--st-scheduling"},
+  paperwork:{label:"Forms", c:"--st-paperwork"},
+  pending:{label:"Action needed", c:"--st-pending"},
   interviewing:{label:"Interviewing", c:"--st-interviewing"},
   offer:{label:"Offer", c:"--st-offer"},
   accepted:{label:"Accepted", c:"--st-accepted"},
   rejected:{label:"Rejected", c:"--st-rejected"},
   withdrawn:{label:"Withdrawn", c:"--st-withdrawn"},
+  expired:{label:"Expired", c:"--st-expired"},
   unknown:{label:"Unknown", c:"--st-other"},
 };
 const ATS = {"greenhouse.io":"Greenhouse","greenhouse-mail.io":"Greenhouse","lever.co":"Lever","ashbyhq.com":"Ashby","myworkday.com":"Workday","myworkdayjobs.com":"Workday","icims.com":"iCIMS","smartrecruiters.com":"SmartRecruiters","jobvite.com":"Jobvite","workablemail.com":"Workable","linkedin.com":"LinkedIn","indeedemail.com":"Indeed","stackoverflow.com":"Stack Overflow","governmentjobs.com":"GovernmentJobs"};
 
+// statuses that mean something is waiting on you; these go to the top of the list
+const ACTION = new Set(["assessment","scheduling","paperwork","pending"]);
 // files written before the rename call this status "other"
 const normStatus = s => s==="other" ? "unknown" : (STATUS[s] ? s : "unknown");
 const $ = id => document.getElementById(id);
@@ -278,7 +284,7 @@ function parseRun(text){
       status: normStatus(raw.status), item:cut(raw.item,200),
       last_date:cut(raw.last_date,10), first_date:cut(raw.first_date||raw.last_date,10),
       last_subject:cut(raw.last_subject,200), last_notification:cut(raw.last_notification,240), last_url:cut(raw.last_url,500),
-      notices:(Array.isArray(raw.notices)?raw.notices:[]).slice(0,60).map(n=>({id:cut(n.id,60), date:cut(n.date,10), status:normStatus(n.status), subject:cut(n.subject,200), from:cut(n.from,160), evidence:cut(n.evidence,240), url:cut(n.url,500)}))
+      notices:(Array.isArray(raw.notices)?raw.notices:[]).slice(0,60).map(n=>({id:cut(n.id,60), date:cut(n.date,10), status:normStatus(n.status), subject:cut(n.subject,200), from:cut(n.from,160), evidence:cut(n.evidence,240), url:cut(n.url,500), superseded:!!n.superseded}))
     };
     let key = normCo(a.company) + "|" + (normPos(a.position) || "-");
     const n = (used.get(key)||0) + 1; used.set(key, n); if(n>1) key += "#" + n;
@@ -409,14 +415,16 @@ function buildApps(){
     let item = a.item || "";
     const ov = settings.overrides[a.key];
     v.overridden = false;
-    if(ov && STATUS[ov.status] && String(ov.at||"") >= String(a.last_date||"")){ status = ov.status; item = status==="pending" ? item : ""; v.overridden = true; }
-    v.status = status; v.item = status==="pending" ? item : "";
+    if(ov && STATUS[ov.status] && String(ov.at||"") >= String(a.last_date||"")){ status = ov.status; item = ACTION.has(status) ? item : ""; v.overridden = true; }
+    v.status = status; v.item = ACTION.has(status) ? item : "";
     v.hidden = !!settings.hidden[a.key];
     v.via = via((a.notices[0]||{}).from);
     return v;
   });
+  // waiting on you first, rejected last, newest first within each group
+  const group = a => ACTION.has(a.status) ? 0 : a.status==="rejected" ? 2 : 1;
   return out.sort((a,b) => {
-    if(a.status==="rejected" !== (b.status==="rejected")) return a.status==="rejected" ? 1 : -1;
+    if(group(a)!==group(b)) return group(a)-group(b);
     return String(b.last_date).localeCompare(String(a.last_date)) || a.company.localeCompare(b.company);
   });
 }
@@ -560,85 +568,93 @@ function renderStatusSankey(allApps, ready){
     .map(([k,label,n]) => `<button class="chipf" type="button" data-o="${k}" aria-pressed="${sankeyOrigin===k}">${k==="all"?"":`<span class="dot" style="--c:var(${STATUS[k].c})"></span>`}<span>${label}</span><span class="n">${n}</span></button>`).join("");
   const apps = sankeyOrigin==="all" ? allApps : allApps.filter(a => originOf(a)===sankeyOrigin);
 
-  const flows = new Map();
-  for(const a of apps){
-    const notices = (a.notices||[]).filter(n => n.status && STATUS[n.status]).slice().sort((x,y) => String(x.date).localeCompare(String(y.date)));
-    const initial = notices.length ? notices[0].status : a.status;
-    const current = a.status;
-    if(!initial || !current) continue;
-    const terminal = initial === current ? "no-update" : current;
-    const key = `${initial}|${terminal}`;
-    flows.set(key,(flows.get(key)||0)+1);
-  }
-  if(!flows.size){
+  // Each application's path starts at Applied (or Referred) and follows every change of status after it.
+  // Every application was applied to, so when the confirmation is missing (sent before the --since date, or one email
+  // that is both confirmation and task) the path still starts at Applied. "Unknown" emails say nothing about the
+  // status and task emails that arrived after a rejection don't reopen it, so both are skipped. A status set by hand
+  // on the page ends the path.
+  const pathOf = a => {
+    const notices = (a.notices||[]).filter(n => n.status && STATUS[n.status] && n.status!=="unknown" && !n.superseded)
+      .slice().sort((x,y) => String(x.date).localeCompare(String(y.date)));
+    const path = [];
+    for(const n of notices) if(path[path.length-1]!==n.status) path.push(n.status);
+    if(a.status && a.status!=="unknown" && path[path.length-1]!==a.status) path.push(a.status);
+    if(path[0]!=="applied" && path[0]!=="referred") path.unshift("applied");
+    if(path.length===1) path.push("no-update");
+    return path;
+  };
+  const paths = apps.map(pathOf).filter(p => p.length>1);
+  if(!paths.length){
     $("sankeySub").textContent = "No status transitions match these filters";
     $("sankeyBody").innerHTML = `<div class="chart-empty">No status flow to show</div>`;
     return;
   }
 
-  const links = [...flows.entries()].map(([key,value]) => {
-    const [source,target] = key.split("|");
-    return {source,target,value};
-  });
-  const sources = [...new Set(links.map(link => link.source))];
-  const targets = [...new Set(links.map(link => link.target))];
-  const maxValue = Math.max(...links.map(link => link.value));
-  const height=320, width=900, left=180, right=704;
-  const nodeWidth=16, plotTop=28, plotHeight=236;
+  const ORDER = ["referred","applied","assessment","scheduling","paperwork","pending","interviewing","offer","accepted","expired","withdrawn","rejected","no-update"];
+  const rankOf = s => { const i=ORDER.indexOf(s); return i<0 ? ORDER.length : i; };
+  const cols = Math.max(...paths.map(p => p.length));
+  const nodes = new Map();        // "col|status" -> node
+  const linkMap = new Map();      // "col|from|to" -> link
+  const nodeAt = (col,status) => {
+    const id = col+"|"+status;
+    if(!nodes.has(id)) nodes.set(id, {id, col, status, in:0, out:0, outLinks:[], inLinks:[]});
+    return nodes.get(id);
+  };
+  for(const p of paths){
+    nodeAt(0,p[0]);
+    for(let i=0;i<p.length-1;i++){
+      const s=nodeAt(i,p[i]), t=nodeAt(i+1,p[i+1]);
+      const id=i+"|"+p[i]+"|"+p[i+1];
+      if(!linkMap.has(id)){ const l={source:s,target:t,value:0}; linkMap.set(id,l); s.outLinks.push(l); t.inLinks.push(l); }
+      linkMap.get(id).value++; s.out++; t.in++;
+    }
+  }
+  const links = [...linkMap.values()];
+  const value = n => Math.max(n.in, n.out);
 
-  function layout(names, side){
-    const totals = names.map(name => side==="source"
-      ? links.filter(link => link.source===name).reduce((sum,link)=>sum+link.value,0)
-      : links.filter(link => link.target===name).reduce((sum,link)=>sum+link.value,0));
-    const total = totals.reduce((sum,value)=>sum+value,0);
-    const gaps = Math.max(names.length-1,0)*10;
-    const scale = Math.max(0,(plotHeight-gaps)/Math.max(total,1));
-    let y=plotTop;
-    return names.map((name,index)=>{
-      const nodeHeight=Math.max(14,totals[index]*scale);
-      const node={name,y,height:nodeHeight};
-      y += nodeHeight+10;
-      return node;
-    });
+  const width=900, nodeWidth=14, padL=8, padR=128, plotTop=34, gap=14, minH=4;
+  const total = paths.length;
+  const byCol = Array.from({length:cols}, (_,c) => [...nodes.values()].filter(n => n.col===c).sort((x,y) => rankOf(x.status)-rankOf(y.status)));
+  const maxNodes = Math.max(...byCol.map(c => c.length));
+  const px = Math.min(10, (300 - gap*(maxNodes-1)) / total);
+  const colX = c => padL + (cols===1 ? 0 : c*(width-padL-padR-nodeWidth)/(cols-1));
+  let bottom = plotTop;
+  for(const col of byCol){
+    let y = plotTop;
+    for(const n of col){
+      n.x = colX(n.col); n.y = y; n.h = Math.max(minH, value(n)*px);
+      y += Math.max(n.h, 16) + gap;
+    }
+    bottom = Math.max(bottom, y - gap);
   }
-  const sourceNodes=layout(sources,"source");
-  const targetNodes=layout(targets,"target");
-  const sourceOffsets=new Map(sources.map(name=>[name,0]));
-  const targetOffsets=new Map(targets.map(name=>[name,0]));
+  const height = Math.ceil(bottom + 12);
 
-  let svg=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Application status transitions">`;
-  for(const link of links){
-    const source=sourceNodes.find(node=>node.name===link.source);
-    const target=targetNodes.find(node=>node.name===link.target);
-    const sourceTotal=links.filter(item=>item.source===link.source).reduce((sum,item)=>sum+item.value,0);
-    const targetTotal=links.filter(item=>item.target===link.target).reduce((sum,item)=>sum+item.value,0);
-    const sourceScale=source.height/Math.max(sourceTotal,1);
-    const targetScale=target.height/Math.max(targetTotal,1);
-    const ribbonSource=link.value*sourceScale;
-    const ribbonTarget=link.value*targetScale;
-    const sy=source.y+sourceOffsets.get(link.source)+ribbonSource/2;
-    const ty=target.y+targetOffsets.get(link.target)+ribbonTarget/2;
-    sourceOffsets.set(link.source,sourceOffsets.get(link.source)+ribbonSource);
-    targetOffsets.set(link.target,targetOffsets.get(link.target)+ribbonTarget);
-    const opacity=.28+.42*(link.value/maxValue);
-    const sx1=sy-ribbonSource/2, sx2=sy+ribbonSource/2;
-    const tx1=ty-ribbonTarget/2, tx2=ty+ribbonTarget/2;
-    const targetLabel=target.name==="no-update"?"No update":flowLabel(target.name,"current");
-    svg += `<path d="M ${left+nodeWidth} ${sx1} C ${left+210} ${sx1}, ${right-210} ${tx1}, ${right} ${tx1} L ${right} ${tx2} C ${right-210} ${tx2}, ${left+210} ${sx2}, ${left+nodeWidth} ${sx2} Z" fill="${statusColor(link.source)}" fill-opacity="${opacity.toFixed(2)}"><title>${esc(flowLabel(source.name,"start"))} to ${esc(targetLabel)}: ${link.value}</title></path>`;
+  // stack ribbons inside each node in the order of the node they lead to, so they cross as little as possible
+  for(const n of nodes.values()){
+    n.outLinks.sort((a,b) => a.target.y-b.target.y);
+    n.inLinks.sort((a,b) => a.source.y-b.source.y);
+    let o=n.y; for(const l of n.outLinks){ l.sy=o; o+=l.value*px; }
+    let i=n.y; for(const l of n.inLinks){ l.ty=i; i+=l.value*px; }
   }
-  for(const node of sourceNodes){
-    svg += `<rect x="${left}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="3" fill="${statusColor(node.name)}"></rect>`;
-    const label=node.name==="Start"?"Start":flowLabel(node.name,"start");
-    svg += `<text x="${left-10}" y="${node.y+node.height/2+4}" text-anchor="end">${esc(label)}</text>`;
+
+  const label = n => n.status==="no-update" ? "No update" : flowLabel(n.status, "current");
+  let svg=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Application status flow across ${cols} steps">`;
+  for(let c=0;c<cols;c++){
+    svg += `<text class="sankey-label" x="${colX(c)}" y="14" font-size="11">${c===0?"Start":"Step "+(c+1)}</text>`;
   }
-  for(const node of targetNodes){
-    svg += `<rect x="${right}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="3" fill="${statusColor(node.name)}"></rect>`;
-    const label=node.name==="no-update"?"No update":flowLabel(node.name,"current");
-    svg += `<text x="${right+nodeWidth+10}" y="${node.y+node.height/2+4}">${esc(label)}</text>`;
+  const maxValue = Math.max(...links.map(l => l.value));
+  for(const l of links){
+    const x0=l.source.x+nodeWidth, x1=l.target.x, xm=(x0+x1)/2, w=l.value*px;
+    const opacity=.3+.35*(l.value/maxValue);
+    svg += `<path d="M ${x0} ${l.sy} C ${xm} ${l.sy}, ${xm} ${l.ty}, ${x1} ${l.ty} L ${x1} ${l.ty+w} C ${xm} ${l.ty+w}, ${xm} ${l.sy+w}, ${x0} ${l.sy+w} Z" fill="${statusColor(l.target.status)}" fill-opacity="${opacity.toFixed(2)}"><title>${esc(label(l.source))} → ${esc(label(l.target))}: ${l.value}</title></path>`;
+  }
+  for(const n of nodes.values()){
+    svg += `<rect x="${n.x}" y="${n.y}" width="${nodeWidth}" height="${n.h}" rx="3" fill="${statusColor(n.status)}"><title>${esc(label(n))}: ${value(n)}</title></rect>`;
+    svg += `<text x="${n.x+nodeWidth+6}" y="${n.y+Math.max(n.h,12)/2+4}" style="paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round">${esc(label(n))} <tspan class="sankey-label">${value(n)}</tspan></text>`;
   }
   svg += `</svg>`;
-  const transitions=[...flows.values()].reduce((sum,value)=>sum+value,0);
-  $("sankeySub").textContent = `${transitions} application status transition${transitions===1?"":"s"}`;
+  const moved = paths.filter(p => p[1]!=="no-update").length;
+  $("sankeySub").textContent = `${total} application${total===1?"":"s"}, ${moved} with at least one status change. Each column is the next change of status; "No update" means nothing came after the application.`;
   $("sankeyBody").innerHTML = svg;
 }
 

@@ -42,7 +42,7 @@ The page looks for `applications.json` next to it and loads it automatically whe
 
 ![Status filters, applications over time, and the status flow diagram](docs/screenshot.png)
 
-The flow diagram starts each application at the status of its first email (Applied or Referred) and ends it at its current status. Use "Started as" to show only applications that began as a referral or as an application.
+The flow diagram follows each application through every status change. Every path starts at Applied (or Referred), even when the confirmation email is missing (sent before `--since`, or one email that is both confirmation and task), and each column after it is the next change (for example Applied → Assessment → Interviewing). Applications with nothing after the application flow to "No update". Hover a ribbon for its count.
 
 ![The list of applications with status, latest email and last update](docs/screenshot-list.png)
 
@@ -50,7 +50,7 @@ Each row is one application: its status (with the task waiting on you, if any), 
 
 ## Statuses
 
-Referred, applied, pending (something is waiting on you; the item is shown), interviewing, offer, accepted, rejected, withdrawn, unknown. Unknown means the latest email mentions the application but says nothing about its status; in the flow diagram it is labelled "Other" on the left (where applications start) and "Unknown" on the right (where they stand now), for example Other → Applied when a security-code email came before the confirmation. Referred and applied are both initial application states; an application's status is the status of its most recent notice. Rules are in `PATTERNS` at the top of `job_tracker.py`.
+Referred, applied, interviewing, offer, accepted, rejected, withdrawn, expired, unknown, and four statuses for a task waiting on you, which the page lists first with the task shown: assessment (coding test, take-home), scheduling (send times or book an interview), paperwork (NDA, forms, questions, documents; "Forms" on the page) and pending (anything else; "Action needed" on the page). Expired means an assessment invitation ran out. Unknown means the latest email mentions the application but says nothing about its status. An application's status is the status of its most recent notice, except that automated task reminders arriving after a rejection don't reopen it. Roles are matched across differently written titles and requisition numbers (R-111084, JR2007944). Rules are in `PATTERNS` and `PENDING_KINDS` at the top of `job_tracker.py`; `validate` counts the four task statuses as "pending".
 
 ## How far to trust it
 
